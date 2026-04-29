@@ -33,7 +33,10 @@ class TestFilterReadsIntegration(TestPluginBase):
 
         output_path = Path(observed.path, 'S1_0_L001_R1_001.fastq.gz')
         self.assertTrue(output_path.is_file())
-        self.assertEqual(self._read_fastq_ids(output_path), ['non-host'])
+        self.assertEqual(
+            self._read_fastq_ids(output_path),
+            ['non-host', 'non-host-at', 'non-host-g'],
+        )
 
     def _make_reads(self):
         self._gzip_fixture(
