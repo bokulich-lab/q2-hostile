@@ -7,7 +7,11 @@ from q2_types.per_sample_sequences import (
 from q2_types.sample_data import SampleData
 
 from q2_hostile import __version__
-from q2_hostile._formats import HostileIndexDirFmt, HostileIndexMetadataFormat
+from q2_hostile._formats import (
+    HostileIndexDirFmt,
+    HostileIndexFileFormat,
+    HostileIndexMetadataFormat,
+)
 from q2_hostile._methods import fetch_index, filter_reads
 from q2_hostile._types import HostileIndex
 
@@ -24,14 +28,18 @@ plugin = Plugin(
     citations=[citations['Caporaso-Bolyen-2024']],
 )
 
-plugin.register_formats(HostileIndexMetadataFormat, HostileIndexDirFmt)
+plugin.register_formats(
+    HostileIndexFileFormat,
+    HostileIndexMetadataFormat,
+    HostileIndexDirFmt,
+)
 
 plugin.register_semantic_types(HostileIndex)
 
 plugin.register_artifact_class(
     HostileIndex,
     directory_format=HostileIndexDirFmt,
-    description='A standard Hostile index that has been downloaded locally.',
+    description='A downloaded standard Hostile index.',
 )
 
 plugin.methods.register_function(
@@ -51,7 +59,7 @@ plugin.methods.register_function(
         ),
     },
     output_descriptions={
-        'index': 'A record of the downloaded Hostile index.',
+        'index': 'The downloaded Hostile index files.',
     },
     name='Fetch index',
     description=(

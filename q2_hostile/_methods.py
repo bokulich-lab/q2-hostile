@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -9,11 +10,6 @@ from q2_types.per_sample_sequences import (
 
 from q2_hostile._formats import HostileIndexDirFmt, HostileIndexMetadataFormat
 from q2_hostile._utils import run_command
-
-
-def _run_hostile(cmd):
-    completed = run_command(cmd, capture_output=True, text=True)
-    return completed.stdout
 
 
 def fetch_index(
@@ -27,9 +23,13 @@ def fetch_index(
     elif aligner == 'bowtie2':
         cmd.append('--bowtie2')
 
-    _run_hostile(cmd)
-
     result = HostileIndexDirFmt()
+    with tempfile.TemporaryDirectory(prefix='q2-hostile-index-') as cache_dir:
+        env = os.environ.copy()
+        env['HOSTILE_CACHE_DIR'] = cache_dir
+        _run_hostile(cmd, env=env)
+        _copy_fetched_index(name, aligner, cache_dir, result.path)
+
     metadata = {
         'name': name,
         'aligner': aligner,
@@ -53,7 +53,9 @@ def filter_reads(
     index_metadata = _read_index_metadata(index)
     samples = reads.manifest
     paired = _is_paired(samples)
-    _validate_index_aligner(index_metadata['aligner'], aligner, paired)
+    effective_aligner = _resolve_aligner(aligner, paired)
+    _validate_index_aligner(index_metadata['aligner'], effective_aligner)
+    index_path = _index_path(index, index_metadata['name'], effective_aligner)
 
     result = CasavaOneEightSingleLanePerSampleDirFmt()
 
@@ -67,7 +69,7 @@ def filter_reads(
                 fastq1=sample['forward'],
                 fastq2=sample['reverse'] if paired else None,
                 output_dir=sample_output,
-                index=index_metadata['name'],
+                index=index_path,
                 aligner=aligner,
                 threads=threads,
                 invert=invert,
@@ -90,6 +92,50 @@ def filter_reads(
     return result
 
 
+def _run_hostile(cmd, env=None):
+    completed = run_command(
+        cmd,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+    return completed.stdout
+
+
+def _copy_fetched_index(name, aligner, cache_dir, output_dir):
+    cache_dir = Path(cache_dir)
+    output_dir = Path(output_dir)
+    copied = []
+
+    if aligner in ('both', 'minimap2'):
+        copied.extend(_copy_matching_files(
+            cache_dir,
+            output_dir,
+            [f'{name}.fa.gz', f'{name}.mmi'],
+        ))
+    if aligner in ('both', 'bowtie2'):
+        copied.extend(_copy_matching_files(
+            cache_dir,
+            output_dir,
+            sorted(path.name for path in cache_dir.glob(f'{name}.*.bt2*')),
+        ))
+
+    if not copied:
+        raise FileNotFoundError(
+            f'Hostile did not fetch any index files for {name!r}.'
+        )
+
+
+def _copy_matching_files(source_dir, output_dir, filenames):
+    copied = []
+    for filename in filenames:
+        source = Path(source_dir, filename)
+        if source.is_file():
+            shutil.copyfile(source, Path(output_dir, filename))
+            copied.append(filename)
+    return copied
+
+
 def _read_index_metadata(index):
     with index.index.view(HostileIndexMetadataFormat).open() as fh:
         return json.load(fh)
@@ -99,12 +145,15 @@ def _is_paired(samples):
     return 'reverse' in samples and samples['reverse'].notna().any()
 
 
-def _validate_index_aligner(index_aligner, requested_aligner, paired):
+def _resolve_aligner(aligner, paired):
+    if aligner != 'auto':
+        return aligner
+    return 'bowtie2' if paired else 'minimap2'
+
+
+def _validate_index_aligner(index_aligner, requested_aligner):
     if index_aligner == 'both':
         return
-
-    if requested_aligner == 'auto':
-        requested_aligner = 'bowtie2' if paired else 'minimap2'
 
     if index_aligner != requested_aligner:
         raise ValueError(
@@ -112,6 +161,24 @@ def _validate_index_aligner(index_aligner, requested_aligner, paired):
             f'filtering run requires {requested_aligner}. Fetch the index '
             'again with aligner="both" or the required aligner.'
         )
+
+
+def _index_path(index, name, aligner):
+    index_dir = Path(index.path)
+    if aligner == 'bowtie2':
+        path = index_dir / name
+        required_path = Path(f'{path}.1.bt2')
+    else:
+        path = index_dir / f'{name}.fa.gz'
+        required_path = path
+
+    if not required_path.is_file():
+        raise FileNotFoundError(
+            f'The Hostile index artifact does not contain the {aligner} '
+            f'index files for {name!r}.'
+        )
+
+    return str(path)
 
 
 def _build_clean_command(
