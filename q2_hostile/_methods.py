@@ -67,16 +67,11 @@ def filter_reads(
     reorder: bool = False,
 ) -> CasavaOneEightSingleLanePerSampleDirFmt:
     index_metadata = _read_index_metadata(index)
-    samples = _read_manifest(reads)
-    paired = _has_reverse_reads(samples)
+    samples = reads.manifest
+    paired = _is_paired(samples)
     _validate_index_aligner(index_metadata['aligner'], aligner, paired)
 
-    if paired:
-        result = SingleLanePerSamplePairedEndFastqDirFmt()
-    else:
-        result = SingleLanePerSampleSingleEndFastqDirFmt()
-
-    manifest_lines = []
+    result = CasavaOneEightSingleLanePerSampleDirFmt()
 
     with tempfile.TemporaryDirectory(prefix='q2-hostile-clean-') as tmpdir:
         tmpdir = Path(tmpdir)
@@ -95,19 +90,7 @@ def filter_reads(
                 rename=rename,
                 reorder=reorder,
             )
-            log = _parse_hostile_log(_run_command(cmd))
-            record = log[0]
-
-            manifest_lines.append(_copy_cleaned_fastq(
-                record['fastq1_out_path'], result, sample_id, 'forward', 1
-            ))
-            if paired:
-                manifest_lines.append(_copy_cleaned_fastq(
-                    record['fastq2_out_path'], result, sample_id, 'reverse', 2
-                ))
-
-    _write_manifest(result, manifest_lines, paired)
-    _write_metadata(result)
+            _run_command(cmd)
 
     return result
 
@@ -117,14 +100,7 @@ def _read_index_metadata(index):
         return json.load(fh)
 
 
-def _read_manifest(reads):
-    manifest = reads.manifest
-    if isinstance(manifest, pd.DataFrame):
-        return manifest
-    return manifest.view(pd.DataFrame)
-
-
-def _has_reverse_reads(samples):
+def _is_paired(samples):
     return 'reverse' in samples and samples['reverse'].notna().any()
 
 
@@ -181,45 +157,3 @@ def _build_clean_command(
         cmd.append('--reorder')
 
     return cmd
-
-
-def _parse_hostile_log(stdout):
-    try:
-        return json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        start = stdout.find('[')
-        end = stdout.rfind(']')
-        if start == -1 or end == -1 or end <= start:
-            raise RuntimeError(
-                'Hostile completed but did not emit a JSON cleaning log.'
-            ) from exc
-        return json.loads(stdout[start:end + 1])
-
-
-def _copy_cleaned_fastq(source, result, sample_id, direction, read_number):
-    filename = f'{sample_id}_0_L001_R{read_number}_001.fastq.gz'
-    destination = Path(result.path, filename)
-    shutil.copyfile(source, destination)
-    return f'{sample_id},{filename},{direction}\n'
-
-
-def _write_manifest(result, manifest_lines, paired):
-    manifest = FastqManifestFormat()
-    header = 'sample-id,filename,direction\n'
-    if not paired:
-        header += (
-            '# direction is not meaningful in this file as these\n'
-            '# data may be derived from forward, reverse, or joined reads\n'
-        )
-
-    with manifest.open() as fh:
-        fh.write(header)
-        fh.writelines(manifest_lines)
-
-    result.manifest.write_data(manifest, FastqManifestFormat)
-
-
-def _write_metadata(result):
-    metadata = YamlFormat()
-    metadata.path.write_text('phred-offset: 33\n')
-    result.metadata.write_data(metadata, YamlFormat)
