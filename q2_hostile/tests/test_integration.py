@@ -1,6 +1,6 @@
 import gzip
-import json
 from pathlib import Path
+import shutil
 import tempfile
 
 from qiime2.plugin.testing import TestPluginBase
@@ -36,18 +36,9 @@ class TestFilterReadsIntegration(TestPluginBase):
         self.assertEqual(self._read_fastq_ids(output_path), ['non-host'])
 
     def _make_reads(self):
-        self._write_fastq(
+        self._gzip_fixture(
+            'integration/filter_reads/S1_0_L001_R1_001.fastq',
             self.reads_dir / 'S1_0_L001_R1_001.fastq.gz',
-            [
-                (
-                    'host',
-                    'ACGTTGCAGTCAGTCAAGTCGATCGTACGATCGATGCTAGCTAGC',
-                ),
-                (
-                    'non-host',
-                    'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
-                ),
-            ],
         )
         return CasavaOneEightSingleLanePerSampleDirFmt(
             str(self.reads_dir),
@@ -55,11 +46,8 @@ class TestFilterReadsIntegration(TestPluginBase):
         )
 
     def _make_bowtie2_index(self):
-        reference_path = self.workdir_path / 'host.fa'
-        reference_path.write_text(
-            '>host\n'
-            'ACGTTGCAGTCAGTCAAGTCGATCGTACGATCGATGCTAGCTAGC'
-            'GATCCGATCGATCGTACGTAGCTAGCTAGCTACGATCGATCGATCGA\n'
+        reference_path = Path(
+            self.get_data_path('integration/filter_reads/host.fa')
         )
         index_prefix = self.index_dir / 'tiny-host'
         run_command(
@@ -68,18 +56,17 @@ class TestFilterReadsIntegration(TestPluginBase):
             text=True,
         )
 
-        Path(self.index_dir, 'index.json').write_text(json.dumps({
-            'name': 'tiny-host',
-            'aligner': 'bowtie2',
-        }))
+        shutil.copyfile(
+            self.get_data_path('integration/filter_reads/index.json'),
+            self.index_dir / 'index.json',
+        )
 
         return HostileIndexDirFmt(str(self.index_dir), mode='r')
 
-    def _write_fastq(self, path, records):
-        with gzip.open(path, 'wt') as fh:
-            for read_id, sequence in records:
-                quality = 'I' * len(sequence)
-                fh.write(f'@{read_id}\n{sequence}\n+\n{quality}\n')
+    def _gzip_fixture(self, fixture_path, output_path):
+        with open(self.get_data_path(fixture_path)) as in_fh:
+            with gzip.open(output_path, 'wt') as out_fh:
+                shutil.copyfileobj(in_fh, out_fh)
 
     def _read_fastq_ids(self, path):
         read_ids = []
