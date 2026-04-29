@@ -1,103 +1,223 @@
 import json
 from pathlib import Path
+import tempfile
+from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from qiime2.plugin.testing import TestPluginBase
 
 from q2_hostile._formats import HostileIndexDirFmt
-from q2_hostile._methods import fetch_index
+from q2_hostile._methods import _copy_fetched_index, fetch_index
 
 
-class FetchIndexTests(TestPluginBase):
+class TestFetchIndex(TestPluginBase):
     package = 'q2_hostile.tests'
 
-    def _fake_fetch(self, cmd, env=None):
-        cache_dir = Path(env['HOSTILE_CACHE_DIR'])
-        name = cmd[cmd.index('--name') + 1]
+    def setUp(self):
+        self.cache = tempfile.TemporaryDirectory()
+        self.cache_dir = self.cache.name
 
-        if '--bowtie2' not in cmd:
-            for suffix in ('.fa.gz', '.mmi'):
-                Path(cache_dir, f'{name}{suffix}').write_bytes(b'index')
+    def tearDown(self):
+        self.cache.cleanup()
 
-        if '--minimap2' not in cmd:
-            for suffix in (
-                '.1.bt2',
-                '.2.bt2',
-                '.3.bt2',
-                '.4.bt2',
-                '.rev.1.bt2',
-                '.rev.2.bt2',
-            ):
-                Path(cache_dir, f'{name}{suffix}').write_bytes(b'index')
+    def _mock_tempdir(self):
+        mock_tempdir = MagicMock()
+        mock_tempdir.__enter__.return_value = self.cache_dir
+        mock_tempdir.__exit__.return_value = None
+        return mock_tempdir
 
-        return ''
+    def _expected_env(self):
+        return {'HOSTILE_CACHE_DIR': self.cache_dir}
 
+    @patch('q2_hostile._methods.os.environ.copy')
+    @patch('q2_hostile._methods.tempfile.TemporaryDirectory')
+    @patch('q2_hostile._methods._copy_fetched_index')
     @patch('q2_hostile._methods._run_hostile')
-    def test_fetch_index_copies_all_index_files(self, mock_run_hostile):
-        mock_run_hostile.side_effect = self._fake_fetch
+    def test_fetch_index_runs_hostile_and_writes_metadata(
+        self,
+        mock_run_hostile,
+        mock_copy_fetched_index,
+        mock_temporary_directory,
+        mock_environ_copy,
+    ):
+        mock_temporary_directory.return_value = self._mock_tempdir()
+        mock_environ_copy.return_value = {}
 
         observed = fetch_index(name='human-t2t-hla', aligner='both')
 
         self.assertIsInstance(observed, HostileIndexDirFmt)
-        self.assertTrue(Path(observed.path, 'human-t2t-hla.fa.gz').is_file())
-        self.assertTrue(Path(observed.path, 'human-t2t-hla.mmi').is_file())
-        self.assertTrue(Path(observed.path, 'human-t2t-hla.1.bt2').is_file())
-        self.assertTrue(Path(observed.path, 'human-t2t-hla.rev.2.bt2').is_file())
 
         metadata = json.loads(Path(observed.path, 'index.json').read_text())
         self.assertEqual(metadata, {'name': 'human-t2t-hla', 'aligner': 'both'})
 
-        mock_run_hostile.assert_called_once()
-        cmd = mock_run_hostile.call_args.args[0]
-        env = mock_run_hostile.call_args.kwargs['env']
-        self.assertEqual(cmd, ['hostile', 'index', 'fetch',
-                               '--name', 'human-t2t-hla'])
-        self.assertIn('HOSTILE_CACHE_DIR', env)
+        mock_run_hostile.assert_called_once_with(
+            ['hostile', 'index', 'fetch', '--name', 'human-t2t-hla'],
+            env=self._expected_env(),
+        )
 
+        mock_copy_fetched_index.assert_called_once_with(
+            'human-t2t-hla',
+            'both',
+            self.cache_dir,
+            observed.path,
+        )
+
+    @patch('q2_hostile._methods.os.environ.copy')
+    @patch('q2_hostile._methods.tempfile.TemporaryDirectory')
+    @patch('q2_hostile._methods._copy_fetched_index')
     @patch('q2_hostile._methods._run_hostile')
-    def test_fetch_index_copies_minimap2_only(self, mock_run_hostile):
-        mock_run_hostile.side_effect = self._fake_fetch
+    def test_fetch_index_requests_minimap2(
+        self,
+        mock_run_hostile,
+        mock_copy_fetched_index,
+        mock_temporary_directory,
+        mock_environ_copy,
+    ):
+        mock_temporary_directory.return_value = self._mock_tempdir()
+        mock_environ_copy.return_value = {}
 
         observed = fetch_index(name='human-t2t-hla', aligner='minimap2')
 
-        self.assertTrue(Path(observed.path, 'human-t2t-hla.fa.gz').is_file())
-        self.assertTrue(Path(observed.path, 'human-t2t-hla.mmi').is_file())
-        self.assertFalse(Path(observed.path, 'human-t2t-hla.1.bt2').exists())
+        mock_run_hostile.assert_called_once_with(
+            ['hostile', 'index', 'fetch',
+             '--name', 'human-t2t-hla', '--minimap2'],
+            env=self._expected_env(),
+        )
+        mock_copy_fetched_index.assert_called_once_with(
+            'human-t2t-hla',
+            'minimap2',
+            self.cache_dir,
+            observed.path,
+        )
 
-        metadata = json.loads(Path(observed.path, 'index.json').read_text())
-        self.assertEqual(metadata,
-                         {'name': 'human-t2t-hla', 'aligner': 'minimap2'})
-
-        mock_run_hostile.assert_called_once()
-        cmd = mock_run_hostile.call_args.args[0]
-        self.assertEqual(cmd, ['hostile', 'index', 'fetch',
-                               '--name', 'human-t2t-hla', '--minimap2'])
-
+    @patch('q2_hostile._methods.os.environ.copy')
+    @patch('q2_hostile._methods.tempfile.TemporaryDirectory')
+    @patch('q2_hostile._methods._copy_fetched_index')
     @patch('q2_hostile._methods._run_hostile')
-    def test_fetch_index_copies_bowtie2_only(self, mock_run_hostile):
-        mock_run_hostile.side_effect = self._fake_fetch
+    def test_fetch_index_requests_bowtie2(
+        self,
+        mock_run_hostile,
+        mock_copy_fetched_index,
+        mock_temporary_directory,
+        mock_environ_copy,
+    ):
+        mock_temporary_directory.return_value = self._mock_tempdir()
+        mock_environ_copy.return_value = {}
 
         observed = fetch_index(name='human-t2t-hla', aligner='bowtie2')
 
-        self.assertFalse(Path(observed.path, 'human-t2t-hla.fa.gz').exists())
-        self.assertTrue(Path(observed.path, 'human-t2t-hla.1.bt2').is_file())
-        self.assertTrue(Path(observed.path, 'human-t2t-hla.rev.2.bt2').is_file())
+        mock_run_hostile.assert_called_once_with(
+            ['hostile', 'index', 'fetch',
+             '--name', 'human-t2t-hla', '--bowtie2'],
+            env=self._expected_env(),
+        )
+        mock_copy_fetched_index.assert_called_once_with(
+            'human-t2t-hla',
+            'bowtie2',
+            self.cache_dir,
+            observed.path,
+        )
 
-        metadata = json.loads(Path(observed.path, 'index.json').read_text())
-        self.assertEqual(metadata,
-                         {'name': 'human-t2t-hla', 'aligner': 'bowtie2'})
 
-        mock_run_hostile.assert_called_once()
-        cmd = mock_run_hostile.call_args.args[0]
-        self.assertEqual(cmd, ['hostile', 'index', 'fetch',
-                               '--name', 'human-t2t-hla', '--bowtie2'])
+class TestCopyFetchedIndex(TestPluginBase):
+    package = 'q2_hostile.tests'
 
-    @patch('q2_hostile._methods._run_hostile')
-    def test_fetch_index_raises_if_no_files_are_fetched(self, mock_run_hostile):
-        mock_run_hostile.return_value = ''
+    def setUp(self):
+        self.cache = tempfile.TemporaryDirectory()
+        self.output = tempfile.TemporaryDirectory()
+        self.cache_dir = Path(self.cache.name)
+        self.output_dir = Path(self.output.name)
+
+    def tearDown(self):
+        self.cache.cleanup()
+        self.output.cleanup()
+
+    def _write_cache_files(self, filenames):
+        for filename in filenames:
+            Path(self.cache_dir, filename).write_bytes(b'index')
+
+    def _observed_output_files(self):
+        return sorted(path.name for path in self.output_dir.iterdir())
+
+    def test_copy_fetched_index_copies_both_index_families(self):
+        self._write_cache_files([
+            'human-t2t-hla.fa.gz',
+            'human-t2t-hla.mmi',
+            'human-t2t-hla.1.bt2',
+            'human-t2t-hla.2.bt2',
+            'human-t2t-hla.3.bt2',
+            'human-t2t-hla.4.bt2',
+            'human-t2t-hla.rev.1.bt2',
+            'human-t2t-hla.rev.2.bt2',
+            'other.1.bt2',
+        ])
+
+        _copy_fetched_index(
+            'human-t2t-hla',
+            'both',
+            self.cache_dir,
+            self.output_dir,
+        )
+
+        self.assertEqual(self._observed_output_files(), [
+            'human-t2t-hla.1.bt2',
+            'human-t2t-hla.2.bt2',
+            'human-t2t-hla.3.bt2',
+            'human-t2t-hla.4.bt2',
+            'human-t2t-hla.fa.gz',
+            'human-t2t-hla.mmi',
+            'human-t2t-hla.rev.1.bt2',
+            'human-t2t-hla.rev.2.bt2',
+        ])
+
+    def test_copy_fetched_index_copies_minimap2_only(self):
+        self._write_cache_files([
+            'human-t2t-hla.fa.gz',
+            'human-t2t-hla.mmi',
+            'human-t2t-hla.1.bt2',
+        ])
+
+        _copy_fetched_index(
+            'human-t2t-hla',
+            'minimap2',
+            self.cache_dir,
+            self.output_dir,
+        )
+
+        self.assertEqual(self._observed_output_files(), [
+            'human-t2t-hla.fa.gz',
+            'human-t2t-hla.mmi',
+        ])
+
+    def test_copy_fetched_index_copies_bowtie2_only(self):
+        self._write_cache_files([
+            'human-t2t-hla.fa.gz',
+            'human-t2t-hla.1.bt2',
+            'human-t2t-hla.rev.2.bt2',
+        ])
+
+        _copy_fetched_index(
+            'human-t2t-hla',
+            'bowtie2',
+            self.cache_dir,
+            self.output_dir,
+        )
+
+        self.assertEqual(self._observed_output_files(), [
+            'human-t2t-hla.1.bt2',
+            'human-t2t-hla.rev.2.bt2',
+        ])
+
+    def test_copy_fetched_index_raises_when_nothing_matches(self):
+        self._write_cache_files(['other.1.bt2'])
 
         with self.assertRaisesRegex(
             FileNotFoundError,
             "Hostile did not fetch any index files for 'missing-index'",
         ):
-            fetch_index(name='missing-index', aligner='both')
+            _copy_fetched_index(
+                'missing-index',
+                'both',
+                self.cache_dir,
+                self.output_dir,
+            )
