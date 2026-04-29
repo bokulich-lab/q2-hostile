@@ -4,13 +4,8 @@ import shutil
 import subprocess
 import tempfile
 
-import pandas as pd
 from q2_types.per_sample_sequences import (
     CasavaOneEightSingleLanePerSampleDirFmt,
-    FastqManifestFormat,
-    SingleLanePerSamplePairedEndFastqDirFmt,
-    SingleLanePerSampleSingleEndFastqDirFmt,
-    YamlFormat,
 )
 
 from q2_hostile._formats import HostileIndexDirFmt, HostileIndexMetadataFormat
@@ -90,7 +85,18 @@ def filter_reads(
                 rename=rename,
                 reorder=reorder,
             )
-            _run_command(cmd)
+            log = _parse_hostile_log(_run_command(cmd))
+            record = log[0]
+
+            _copy_cleaned_fastq(
+                source=record['fastq1_out_path'],
+                destination=Path(result.path, Path(sample['forward']).name),
+            )
+            if paired:
+                _copy_cleaned_fastq(
+                    source=record['fastq2_out_path'],
+                    destination=Path(result.path, Path(sample['reverse']).name),
+                )
 
     return result
 
@@ -157,3 +163,20 @@ def _build_clean_command(
         cmd.append('--reorder')
 
     return cmd
+
+
+def _parse_hostile_log(stdout):
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        start = stdout.find('[')
+        end = stdout.rfind(']')
+        if start == -1 or end == -1 or end <= start:
+            raise RuntimeError(
+                'Hostile completed but did not emit a JSON cleaning log.'
+            ) from exc
+        return json.loads(stdout[start:end + 1])
+
+
+def _copy_cleaned_fastq(source, destination):
+    shutil.copyfile(source, destination)
