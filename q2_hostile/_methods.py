@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 import shutil
-import subprocess
 import tempfile
 
 from q2_types.per_sample_sequences import (
@@ -9,21 +8,11 @@ from q2_types.per_sample_sequences import (
 )
 
 from q2_hostile._formats import HostileIndexDirFmt, HostileIndexMetadataFormat
+from q2_hostile._utils import run_command
 
 
-def _run_command(cmd):
-    try:
-        completed = subprocess.run(
-            cmd,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        detail = exc.stderr.strip() or exc.stdout.strip()
-        raise RuntimeError(
-            f'{cmd[0]} failed with exit code {exc.returncode}: {detail}'
-        ) from exc
+def _run_hostile(cmd):
+    completed = run_command(cmd, capture_output=True, text=True)
     return completed.stdout
 
 
@@ -38,7 +27,7 @@ def fetch_index(
     elif aligner == 'bowtie2':
         cmd.append('--bowtie2')
 
-    _run_command(cmd)
+    _run_hostile(cmd)
 
     result = HostileIndexDirFmt()
     metadata = {
@@ -85,7 +74,7 @@ def filter_reads(
                 rename=rename,
                 reorder=reorder,
             )
-            log = _parse_hostile_log(_run_command(cmd))
+            log = _parse_hostile_log(_run_hostile(cmd))
             record = log[0]
 
             _copy_cleaned_fastq(
