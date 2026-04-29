@@ -12,7 +12,8 @@ from q2_hostile._formats import (
     HostileIndexFileFormat,
     HostileIndexMetadataFormat,
 )
-from q2_hostile._methods import fetch_index, filter_reads
+from q2_hostile.filter import filter_reads
+from q2_hostile.index import fetch_index
 from q2_hostile._types import HostileIndex
 
 citations = Citations.load("citations.bib", package="q2_hostile")
