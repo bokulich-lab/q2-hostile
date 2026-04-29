@@ -76,16 +76,25 @@ def filter_reads(
                 rename=rename,
                 reorder=reorder,
             )
-            log = _parse_hostile_log(_run_hostile(cmd))
-            record = log[0]
+            _run_hostile(cmd)
 
             _copy_cleaned_fastq(
-                source=record['fastq1_out_path'],
+                source=_hostile_output_path(
+                    sample_output,
+                    sample['forward'],
+                    paired=paired,
+                    read_number=1,
+                ),
                 destination=Path(result.path, Path(sample['forward']).name),
             )
             if paired:
                 _copy_cleaned_fastq(
-                    source=record['fastq2_out_path'],
+                    source=_hostile_output_path(
+                        sample_output,
+                        sample['reverse'],
+                        paired=paired,
+                        read_number=2,
+                    ),
                     destination=Path(result.path, Path(sample['reverse']).name),
                 )
 
@@ -221,17 +230,22 @@ def _build_clean_command(
     return cmd
 
 
-def _parse_hostile_log(stdout):
-    try:
-        return json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        start = stdout.find('[')
-        end = stdout.rfind(']')
-        if start == -1 or end == -1 or end <= start:
-            raise RuntimeError(
-                'Hostile completed but did not emit a JSON cleaning log.'
-            ) from exc
-        return json.loads(stdout[start:end + 1])
+def _hostile_output_path(output_dir, fastq, paired, read_number):
+    stem = _fastq_path_to_stem(fastq)
+    if not paired:
+        suffix = '.clean.fastq.gz'
+    elif read_number == 1:
+        suffix = '.clean_1.fastq.gz'
+    else:
+        suffix = '.clean_2.fastq.gz'
+    return Path(output_dir, f'{stem}{suffix}')
+
+
+def _fastq_path_to_stem(fastq):
+    stem = Path(fastq).name.removesuffix('.gz')
+    for suffix in ('.fastq', '.fq'):
+        stem = stem.removesuffix(suffix)
+    return stem
 
 
 def _copy_cleaned_fastq(source, destination):
