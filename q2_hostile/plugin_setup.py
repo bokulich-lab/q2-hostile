@@ -1,3 +1,12 @@
+# flake8: noqa
+# ----------------------------------------------------------------------------
+# Copyright (c) 2026, Bokulich Lab.
+#
+# Distributed under the terms of the Modified BSD License.
+#
+# The full license is in the file LICENSE, distributed with this software.
+# ----------------------------------------------------------------------------
+
 from qiime2.plugin import Bool, Choices, Citations, Int, Plugin, Range, Str
 from qiime2.core.type import TypeMatch
 from q2_types.per_sample_sequences import (
