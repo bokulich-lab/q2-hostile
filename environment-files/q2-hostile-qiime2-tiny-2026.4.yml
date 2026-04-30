@@ -7,3 +7,4 @@ dependencies:
   - hostile
   - pip
   - pip:
+    - q2-hostile @ git+https://github.com/bokulich-lab/q2-hostile.git@2026.4.0
