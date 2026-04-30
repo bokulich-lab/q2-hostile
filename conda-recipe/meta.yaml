@@ -12,7 +12,7 @@ requirements:
   - versioningit
   - wheel
   run:
-  - hostile
+  - hostile >=2
   - qiime2 >={{ qiime2 }}
   - q2-types >={{ q2_types }}
   build:
