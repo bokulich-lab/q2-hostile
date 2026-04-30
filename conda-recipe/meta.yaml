@@ -1,0 +1,34 @@
+package:
+  name: q2-hostile
+  version: {{ PLUGIN_VERSION }}
+source:
+  path: ..
+build:
+  script: make install
+requirements:
+  host:
+  - python {{ python }}
+  - setuptools
+  - versioningit
+  - wheel
+  run:
+  - hostile
+  - qiime2 >={{ qiime2 }}
+  - q2-types >={{ q2_types }}
+  build:
+  - python {{ python }}
+  - setuptools
+  - versioningit
+test:
+  requires:
+  - parameterized
+  - pytest-xdist
+  imports:
+  - q2_hostile
+  - qiime2.plugins.hostile
+  commands:
+  - pytest --pyargs q2_hostile -n 4
+about:
+  home: https://github.com/bokulich-lab/q2-hostile
+  license: BSD-3-Clause
+  license_family: BSD
