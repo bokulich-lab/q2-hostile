@@ -1,7 +1,8 @@
 # q2-hostile
+![CI](https://github.com/bokulich-lab/q2-hostile/actions/workflows/ci.yaml/badge.svg)
+[![codecov](https://codecov.io/gh/bokulich-lab/q2-hostile/graph/badge.svg?token=hE1Qmv0tzQ)](https://codecov.io/gh/bokulich-lab/q2-hostile)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-A [QIIME 2](https://qiime2.org) plugin for host read removal with
-[Hostile](https://github.com/bede/hostile).
+## Installation instructions
 
-This plugin targets the QIIME 2 tiny distribution while wrapping Hostile for
-index management and read filtering.
+For installation instructions head to the [QIIME 2 Library](https://library.qiime2.org/plugins/bokulich-lab/q2-hostile).

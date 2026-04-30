@@ -12,13 +12,13 @@ from q2_hostile.filter import filter_reads
 
 
 class TestFilterReadsIntegration(TestPluginBase):
-    package = 'q2_hostile.tests'
+    package = "q2_hostile.tests"
 
     def setUp(self):
         self.workdir = tempfile.TemporaryDirectory()
         self.workdir_path = Path(self.workdir.name)
-        self.reads_dir = self.workdir_path / 'reads'
-        self.index_dir = self.workdir_path / 'index'
+        self.reads_dir = self.workdir_path / "reads"
+        self.index_dir = self.workdir_path / "index"
         self.reads_dir.mkdir()
         self.index_dir.mkdir()
 
@@ -29,52 +29,50 @@ class TestFilterReadsIntegration(TestPluginBase):
         reads = self._make_reads()
         index = self._make_bowtie2_index()
 
-        observed = filter_reads(reads, index, aligner='bowtie2')
+        observed = filter_reads(reads, index, aligner="bowtie2")
 
-        output_path = Path(observed.path, 'S1_0_L001_R1_001.fastq.gz')
+        output_path = Path(observed.path, "S1_0_L001_R1_001.fastq.gz")
         self.assertTrue(output_path.is_file())
         self.assertEqual(
             self._read_fastq_ids(output_path),
-            ['non-host', 'non-host-at', 'non-host-g'],
+            ["non-host", "non-host-at", "non-host-g"],
         )
 
     def _make_reads(self):
         self._gzip_fixture(
-            'integration/filter_reads/S1_0_L001_R1_001.fastq',
-            self.reads_dir / 'S1_0_L001_R1_001.fastq.gz',
+            "integration/filter_reads/S1_0_L001_R1_001.fastq",
+            self.reads_dir / "S1_0_L001_R1_001.fastq.gz",
         )
         return CasavaOneEightSingleLanePerSampleDirFmt(
             str(self.reads_dir),
-            mode='r',
+            mode="r",
         )
 
     def _make_bowtie2_index(self):
-        reference_path = Path(
-            self.get_data_path('integration/filter_reads/host.fa')
-        )
-        index_prefix = self.index_dir / 'tiny-host'
+        reference_path = Path(self.get_data_path("integration/filter_reads/host.fa"))
+        index_prefix = self.index_dir / "tiny-host"
         run_command(
-            ['bowtie2-build', str(reference_path), str(index_prefix)],
+            ["bowtie2-build", str(reference_path), str(index_prefix)],
             capture_output=True,
             text=True,
         )
 
         shutil.copyfile(
-            self.get_data_path('integration/filter_reads/index.json'),
-            self.index_dir / 'index.json',
+            self.get_data_path("integration/filter_reads/index.json"),
+            self.index_dir / "index.json",
         )
 
-        return HostileIndexDirFmt(str(self.index_dir), mode='r')
+        return HostileIndexDirFmt(str(self.index_dir), mode="r")
 
     def _gzip_fixture(self, fixture_path, output_path):
         with open(self.get_data_path(fixture_path)) as in_fh:
-            with gzip.open(output_path, 'wt') as out_fh:
+            with gzip.open(output_path, "wt") as out_fh:
                 shutil.copyfileobj(in_fh, out_fh)
 
     def _read_fastq_ids(self, path):
         read_ids = []
-        with gzip.open(path, 'rt') as fh:
+        with gzip.open(path, "rt") as fh:
             for line_number, line in enumerate(fh):
                 if line_number % 4 == 0:
-                    read_ids.append(line.strip().removeprefix('@'))
+                    read_ids.append(line.strip().removeprefix("@"))
         return read_ids

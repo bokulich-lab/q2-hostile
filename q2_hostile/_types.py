@@ -1,4 +1,4 @@
 from qiime2.plugin import SemanticType
 
 
-HostileIndex = SemanticType('HostileIndex')
+HostileIndex = SemanticType("HostileIndex")

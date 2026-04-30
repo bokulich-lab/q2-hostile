@@ -9,30 +9,28 @@ from q2_hostile._utils import run_command
 
 
 def fetch_index(
-    name: str = 'human-t2t-hla',
-    aligner: str = 'both',
+    name: str = "human-t2t-hla",
+    aligner: str = "both",
 ) -> HostileIndexDirFmt:
-    cmd = ['hostile', 'index', 'fetch', '--name', name]
+    cmd = ["hostile", "index", "fetch", "--name", name]
 
-    if aligner == 'minimap2':
-        cmd.append('--minimap2')
-    elif aligner == 'bowtie2':
-        cmd.append('--bowtie2')
+    if aligner == "minimap2":
+        cmd.append("--minimap2")
+    elif aligner == "bowtie2":
+        cmd.append("--bowtie2")
 
     result = HostileIndexDirFmt()
-    with tempfile.TemporaryDirectory(prefix='q2-hostile-index-') as cache_dir:
+    with tempfile.TemporaryDirectory(prefix="q2-hostile-index-") as cache_dir:
         env = os.environ.copy()
-        env['HOSTILE_CACHE_DIR'] = cache_dir
+        env["HOSTILE_CACHE_DIR"] = cache_dir
         _run_hostile(cmd, env=env)
         _copy_fetched_index(name, aligner, cache_dir, result.path)
 
     metadata = {
-        'name': name,
-        'aligner': aligner,
+        "name": name,
+        "aligner": aligner,
     }
-    Path(result.path, 'index.json').write_text(
-        json.dumps(metadata, indent=2) + '\n'
-    )
+    Path(result.path, "index.json").write_text(json.dumps(metadata, indent=2) + "\n")
 
     return result
 
@@ -52,23 +50,25 @@ def _copy_fetched_index(name, aligner, cache_dir, output_dir):
     output_dir = Path(output_dir)
     copied = []
 
-    if aligner in ('both', 'minimap2'):
-        copied.extend(_copy_matching_files(
-            cache_dir,
-            output_dir,
-            [f'{name}.fa.gz', f'{name}.mmi'],
-        ))
-    if aligner in ('both', 'bowtie2'):
-        copied.extend(_copy_matching_files(
-            cache_dir,
-            output_dir,
-            sorted(path.name for path in cache_dir.glob(f'{name}.*.bt2*')),
-        ))
+    if aligner in ("both", "minimap2"):
+        copied.extend(
+            _copy_matching_files(
+                cache_dir,
+                output_dir,
+                [f"{name}.fa.gz", f"{name}.mmi"],
+            )
+        )
+    if aligner in ("both", "bowtie2"):
+        copied.extend(
+            _copy_matching_files(
+                cache_dir,
+                output_dir,
+                sorted(path.name for path in cache_dir.glob(f"{name}.*.bt2*")),
+            )
+        )
 
     if not copied:
-        raise FileNotFoundError(
-            f'Hostile did not fetch any index files for {name!r}.'
-        )
+        raise FileNotFoundError(f"Hostile did not fetch any index files for {name!r}.")
 
 
 def _copy_matching_files(source_dir, output_dir, filenames):

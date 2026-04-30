@@ -13,19 +13,18 @@ class HostileIndexMetadataFormat(model.TextFileFormat):
         with self.open() as fh:
             metadata = json.load(fh)
 
-        required = {'name', 'aligner'}
+        required = {"name", "aligner"}
         missing = required - metadata.keys()
         if missing:
             raise ValueError(
-                'Hostile index metadata is missing: '
-                f'{", ".join(sorted(missing))}'
+                "Hostile index metadata is missing: " f'{", ".join(sorted(missing))}'
             )
 
 
 class HostileIndexDirFmt(model.DirectoryFormat):
-    index = model.File('index.json', format=HostileIndexMetadataFormat)
+    index = model.File("index.json", format=HostileIndexMetadataFormat)
     files = model.FileCollection(
-        r'(?!index\.json$).+',
+        (r".+\.(?:fa\.gz|mmi|(?:rev\.[12]|[1-4])\.bt2l?)$"),
         format=HostileIndexFileFormat,
     )
 

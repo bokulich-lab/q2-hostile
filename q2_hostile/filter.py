@@ -14,7 +14,7 @@ from q2_hostile._utils import run_command
 def filter_reads(
     reads: CasavaOneEightSingleLanePerSampleDirFmt,
     index: HostileIndexDirFmt,
-    aligner: str = 'auto',
+    aligner: str = "auto",
     threads: int = 1,
     invert: bool = False,
     rename: bool = False,
@@ -24,20 +24,20 @@ def filter_reads(
     samples = reads.manifest
     paired = _is_paired(samples)
     effective_aligner = _resolve_aligner(aligner, paired)
-    _validate_index_aligner(index_metadata['aligner'], effective_aligner)
-    index_path = _index_path(index, index_metadata['name'], effective_aligner)
+    _validate_index_aligner(index_metadata["aligner"], effective_aligner)
+    index_path = _index_path(index, index_metadata["name"], effective_aligner)
 
     result = CasavaOneEightSingleLanePerSampleDirFmt()
 
-    with tempfile.TemporaryDirectory(prefix='q2-hostile-clean-') as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="q2-hostile-clean-") as tmpdir:
         tmpdir = Path(tmpdir)
 
         for sample_id, sample in samples.iterrows():
             sample_output = tmpdir / str(sample_id)
             sample_output.mkdir()
             cmd = _build_clean_command(
-                fastq1=sample['forward'],
-                fastq2=sample['reverse'] if paired else None,
+                fastq1=sample["forward"],
+                fastq2=sample["reverse"] if paired else None,
                 output_dir=sample_output,
                 index=index_path,
                 aligner=aligner,
@@ -51,21 +51,21 @@ def filter_reads(
             _copy_cleaned_fastq(
                 source=_hostile_output_path(
                     sample_output,
-                    sample['forward'],
+                    sample["forward"],
                     paired=paired,
                     read_number=1,
                 ),
-                destination=Path(result.path, Path(sample['forward']).name),
+                destination=Path(result.path, Path(sample["forward"]).name),
             )
             if paired:
                 _copy_cleaned_fastq(
                     source=_hostile_output_path(
                         sample_output,
-                        sample['reverse'],
+                        sample["reverse"],
                         paired=paired,
                         read_number=2,
                     ),
-                    destination=Path(result.path, Path(sample['reverse']).name),
+                    destination=Path(result.path, Path(sample["reverse"]).name),
                 )
 
     return result
@@ -87,40 +87,40 @@ def _read_index_metadata(index):
 
 
 def _is_paired(samples):
-    return 'reverse' in samples and samples['reverse'].notna().any()
+    return "reverse" in samples and samples["reverse"].notna().any()
 
 
 def _resolve_aligner(aligner, paired):
-    if aligner != 'auto':
+    if aligner != "auto":
         return aligner
-    return 'bowtie2' if paired else 'minimap2'
+    return "bowtie2" if paired else "minimap2"
 
 
 def _validate_index_aligner(index_aligner, requested_aligner):
-    if index_aligner == 'both':
+    if index_aligner == "both":
         return
 
     if index_aligner != requested_aligner:
         raise ValueError(
-            f'The fetched index contains {index_aligner} files, but this '
-            f'filtering run requires {requested_aligner}. Fetch the index '
+            f"The fetched index contains {index_aligner} files, but this "
+            f"filtering run requires {requested_aligner}. Fetch the index "
             'again with aligner="both" or the required aligner.'
         )
 
 
 def _index_path(index, name, aligner):
     index_dir = Path(index.path)
-    if aligner == 'bowtie2':
+    if aligner == "bowtie2":
         path = index_dir / name
-        required_path = Path(f'{path}.1.bt2')
+        required_path = Path(f"{path}.1.bt2")
     else:
-        path = index_dir / f'{name}.fa.gz'
+        path = index_dir / f"{name}.fa.gz"
         required_path = path
 
     if not required_path.is_file():
         raise FileNotFoundError(
-            f'The Hostile index artifact does not contain the {aligner} '
-            f'index files for {name!r}.'
+            f"The Hostile index artifact does not contain the {aligner} "
+            f"index files for {name!r}."
         )
 
     return str(path)
@@ -138,30 +138,30 @@ def _build_clean_command(
     reorder,
 ):
     cmd = [
-        'hostile',
-        'clean',
-        '--fastq1',
+        "hostile",
+        "clean",
+        "--fastq1",
         str(fastq1),
-        '--index',
+        "--index",
         index,
-        '--aligner',
+        "--aligner",
         aligner,
-        '--threads',
+        "--threads",
         str(threads),
-        '--output',
+        "--output",
         str(output_dir),
-        '--force',
-        '--airplane',
+        "--force",
+        "--airplane",
     ]
 
     if fastq2 is not None:
-        cmd.extend(['--fastq2', str(fastq2)])
+        cmd.extend(["--fastq2", str(fastq2)])
     if invert:
-        cmd.append('--invert')
+        cmd.append("--invert")
     if rename:
-        cmd.append('--rename')
+        cmd.append("--rename")
     if reorder:
-        cmd.append('--reorder')
+        cmd.append("--reorder")
 
     return cmd
 
@@ -169,17 +169,17 @@ def _build_clean_command(
 def _hostile_output_path(output_dir, fastq, paired, read_number):
     stem = _fastq_path_to_stem(fastq)
     if not paired:
-        suffix = '.clean.fastq.gz'
+        suffix = ".clean.fastq.gz"
     elif read_number == 1:
-        suffix = '.clean_1.fastq.gz'
+        suffix = ".clean_1.fastq.gz"
     else:
-        suffix = '.clean_2.fastq.gz'
-    return Path(output_dir, f'{stem}{suffix}')
+        suffix = ".clean_2.fastq.gz"
+    return Path(output_dir, f"{stem}{suffix}")
 
 
 def _fastq_path_to_stem(fastq):
-    stem = Path(fastq).name.removesuffix('.gz')
-    for suffix in ('.fastq', '.fq'):
+    stem = Path(fastq).name.removesuffix(".gz")
+    for suffix in (".fastq", ".fq"):
         stem = stem.removesuffix(suffix)
     return stem
 
