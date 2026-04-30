@@ -20,6 +20,7 @@ def filter_reads(
     rename: bool = False,
     reorder: bool = False,
 ) -> CasavaOneEightSingleLanePerSampleDirFmt:
+    """Filter host-matching reads from a per-sample FASTQ directory."""
     index_metadata = _read_index_metadata(index)
     samples = reads.manifest
     paired = _is_paired(samples)
@@ -48,30 +49,31 @@ def filter_reads(
             )
             _run_hostile(cmd)
 
-            _copy_cleaned_fastq(
-                source=_hostile_output_path(
+            shutil.copyfile(
+                _hostile_output_path(
                     sample_output,
                     sample["forward"],
                     paired=paired,
                     read_number=1,
                 ),
-                destination=Path(result.path, Path(sample["forward"]).name),
+                Path(result.path, Path(sample["forward"]).name),
             )
             if paired:
-                _copy_cleaned_fastq(
-                    source=_hostile_output_path(
+                shutil.copyfile(
+                    _hostile_output_path(
                         sample_output,
                         sample["reverse"],
                         paired=paired,
                         read_number=2,
                     ),
-                    destination=Path(result.path, Path(sample["reverse"]).name),
+                    Path(result.path, Path(sample["reverse"]).name),
                 )
 
     return result
 
 
 def _run_hostile(cmd, env=None):
+    """Run a Hostile command and return its stdout."""
     completed = run_command(
         cmd,
         capture_output=True,
@@ -82,21 +84,25 @@ def _run_hostile(cmd, env=None):
 
 
 def _read_index_metadata(index):
+    """Load the metadata stored in a Hostile index artifact."""
     with index.index.view(HostileIndexMetadataFormat).open() as fh:
         return json.load(fh)
 
 
 def _is_paired(samples):
+    """Return whether the manifest contains any paired-end reads."""
     return "reverse" in samples and samples["reverse"].notna().any()
 
 
 def _resolve_aligner(aligner, paired):
+    """Resolve the effective aligner to use for the current read layout."""
     if aligner != "auto":
         return aligner
     return "bowtie2" if paired else "minimap2"
 
 
 def _validate_index_aligner(index_aligner, requested_aligner):
+    """Ensure the fetched index contains files for the requested aligner."""
     if index_aligner == "both":
         return
 
@@ -109,6 +115,7 @@ def _validate_index_aligner(index_aligner, requested_aligner):
 
 
 def _index_path(index, name, aligner):
+    """Return the Hostile index path prefix or FASTA path for an aligner."""
     index_dir = Path(index.path)
     if aligner == "bowtie2":
         path = index_dir / name
@@ -137,6 +144,7 @@ def _build_clean_command(
     rename,
     reorder,
 ):
+    """Build the Hostile clean command for one sample."""
     cmd = [
         "hostile",
         "clean",
@@ -167,6 +175,7 @@ def _build_clean_command(
 
 
 def _hostile_output_path(output_dir, fastq, paired, read_number):
+    """Map an input FASTQ name to the cleaned FASTQ emitted by Hostile."""
     stem = _fastq_path_to_stem(fastq)
     if not paired:
         suffix = ".clean.fastq.gz"
@@ -178,11 +187,8 @@ def _hostile_output_path(output_dir, fastq, paired, read_number):
 
 
 def _fastq_path_to_stem(fastq):
+    """Strip FASTQ compression and sequence-file suffixes from a path."""
     stem = Path(fastq).name.removesuffix(".gz")
     for suffix in (".fastq", ".fq"):
         stem = stem.removesuffix(suffix)
     return stem
-
-
-def _copy_cleaned_fastq(source, destination):
-    shutil.copyfile(source, destination)

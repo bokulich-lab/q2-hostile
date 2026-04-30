@@ -12,6 +12,7 @@ def fetch_index(
     name: str = "human-t2t-hla",
     aligner: str = "both",
 ) -> HostileIndexDirFmt:
+    """Fetch a standard Hostile index and package it as an artifact."""
     cmd = ["hostile", "index", "fetch", "--name", name]
 
     if aligner == "minimap2":
@@ -36,6 +37,7 @@ def fetch_index(
 
 
 def _run_hostile(cmd, env=None):
+    """Run a Hostile command and return its stdout."""
     completed = run_command(
         cmd,
         capture_output=True,
@@ -46,6 +48,7 @@ def _run_hostile(cmd, env=None):
 
 
 def _copy_fetched_index(name, aligner, cache_dir, output_dir):
+    """Copy fetched index files for the requested aligner into output."""
     cache_dir = Path(cache_dir)
     output_dir = Path(output_dir)
     copied = []
@@ -72,6 +75,7 @@ def _copy_fetched_index(name, aligner, cache_dir, output_dir):
 
 
 def _copy_matching_files(source_dir, output_dir, filenames):
+    """Copy the named files that exist from one directory into another."""
     copied = []
     for filename in filenames:
         source = Path(source_dir, filename)
