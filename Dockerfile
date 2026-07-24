@@ -30,12 +30,7 @@ COPY . ./plugin
 RUN micromamba run -n ${PLUGIN_NAME} pip install ./plugin
 
 ENV CONDA_PREFIX=/opt/conda/envs/${PLUGIN_NAME}/
-RUN micromamba run -n ${PLUGIN_NAME} /bin/bash -c '\
-    printf "CONDA_PREFIX=%s\n" "$CONDA_PREFIX"; \
-    ls -l "$CONDA_PREFIX/etc/qiime2_config.toml" || true; \
-    ls -l /opt/conda/etc/qiime2_config.toml || true'
 RUN micromamba run -n ${PLUGIN_NAME} qiime dev refresh-cache
-RUN micromamba run -n ${PLUGIN_NAME} qiime info
 RUN echo 'eval "$(micromamba shell hook --shell bash)"' >> $HOME/.bashrc \
     && echo "micromamba activate ${PLUGIN_NAME}" >> $HOME/.bashrc
 RUN echo "source tab-qiime" >> $HOME/.bashrc
